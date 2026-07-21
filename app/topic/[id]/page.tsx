@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
-import { LinkPreviews } from "@/components/link-previews";
+import { LinkPreviews, LinkPreviewsSkeleton } from "@/components/link-previews";
 import { MarkdownContent } from "@/components/markdown-content";
 import { TopicMetadata } from "@/components/topic-metadata";
 import { getTopicById } from "@/lib/topics";
@@ -69,7 +70,11 @@ export default async function TopicPage({ params }: TopicPageProps) {
                 Parsed from links and Wikipedia fields
               </p>
             </div>
-            <LinkPreviews links={links} wikipediaLinks={wikipediaLinks} />
+            <Suspense
+              fallback={<LinkPreviewsSkeleton count={Math.min(links.length + wikipediaLinks.length, 6) || 4} />}
+            >
+              <LinkPreviews links={links} wikipediaLinks={wikipediaLinks} />
+            </Suspense>
           </section>
         </section>
 
