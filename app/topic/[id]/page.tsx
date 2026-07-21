@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft } from "lucide-react";
 import { LinkPreviews, LinkPreviewsSkeleton } from "@/components/link-previews";
 import { MarkdownContent } from "@/components/markdown-content";
 import { TopicMetadata } from "@/components/topic-metadata";
@@ -36,8 +36,8 @@ export default async function TopicPage({ params }: TopicPageProps) {
   const wikipediaLinks = parseUrls(topic.wikipediaLink);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8">
+    <main className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
         <Link
           href="/"
           className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition hover:border-teal-700 hover:text-teal-800"
@@ -45,9 +45,28 @@ export default async function TopicPage({ params }: TopicPageProps) {
           <ArrowLeft className="h-4 w-4" aria-hidden />
           Back to topics
         </Link>
+        <a
+          href="#external-resources"
+          className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition hover:border-teal-700 hover:text-teal-800 lg:hidden"
+        >
+          <ArrowDownToLine className="h-4 w-4" aria-hidden />
+          External resources
+        </a>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-8 lg:grid-cols-[12rem_minmax(0,1fr)_320px]">
+        <aside className="hidden lg:block">
+          <div className="sticky top-8">
+            <a
+              href="#external-resources"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm font-medium text-stone-700 shadow-sm transition hover:border-teal-700 hover:text-teal-800"
+            >
+              <ArrowDownToLine className="h-4 w-4 shrink-0" aria-hidden />
+              External resources
+            </a>
+          </div>
+        </aside>
+
         <section className="min-w-0 space-y-8">
           <header className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-teal-800">
@@ -63,7 +82,7 @@ export default async function TopicPage({ params }: TopicPageProps) {
             <MarkdownContent content={topic.text} />
           </section>
 
-          <section className="space-y-4">
+          <section id="external-resources" className="scroll-mt-8 space-y-4">
             <div>
               <h2 className="font-display text-xl text-stone-900">External resources</h2>
               <p className="mt-1 text-sm text-stone-500">
