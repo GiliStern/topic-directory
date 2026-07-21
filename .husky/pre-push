@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+
+# Block pushes to main if the production build would fail on Vercel.
+while read local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main)
+      echo "▸ Running production build before push to main..."
+      npm run build || exit 1
+      ;;
+  esac
+done
+
+exit 0
