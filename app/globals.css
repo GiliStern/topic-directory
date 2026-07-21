@@ -24,6 +24,6 @@ body {
   }
 
   .font-display {
-    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-family: var(--font-sans), "Google Sans", ui-sans-serif, system-ui, sans-serif;
   }
 }

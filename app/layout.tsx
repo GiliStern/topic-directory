@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const sans = Source_Sans_3({
-  subsets: ["latin"],
+const googleSans = localFont({
+  src: [
+    {
+      path: "./fonts/google-sans-latin-wght-normal.woff2",
+      weight: "400 700",
+      style: "normal",
+    },
+    {
+      path: "./fonts/google-sans-latin-wght-italic.woff2",
+      weight: "400 700",
+      style: "italic",
+    },
+  ],
   variable: "--font-sans",
-  display: "swap",
-});
-
-const display = Source_Serif_4({
-  subsets: ["latin"],
-  variable: "--font-display",
   display: "swap",
 });
 
@@ -30,7 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${sans.variable} ${display.variable} font-sans antialiased`}>
+      <body className={`${googleSans.variable} font-sans antialiased`}>
         <div className="min-h-screen">{children}</div>
       </body>
     </html>
