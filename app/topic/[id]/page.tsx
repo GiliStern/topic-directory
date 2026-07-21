@@ -9,7 +9,7 @@ import { TopicMetadata } from "@/components/topic-metadata";
 import { getTopicById } from "@/lib/topics";
 import { parseUrls } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 type TopicPageProps = {
   params: { id: string };

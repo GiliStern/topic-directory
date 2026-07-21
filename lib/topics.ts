@@ -1,126 +1,184 @@
-import { readFileSync } from "fs";
-import path from "path";
 import { cache } from "react";
-import Papa from "papaparse";
-import type { Topic } from "@/lib/types";
+import { createPublicSupabaseClient } from "@/lib/supabase/public";
+import type { Topic, TopicListResult, TopicStats } from "@/lib/types";
+import { TOPICS_PAGE_SIZE } from "@/lib/types";
 
-type CsvRow = Record<string, string | undefined>;
+export type { TopicListResult, TopicStats };
+export { TOPICS_PAGE_SIZE };
 
-function normalizeKey(key: string): string {
-  return key.replace(/^\uFEFF/, "").trim().toLowerCase();
-}
+export type TopicListParams = {
+  query?: string;
+  hideEmpty?: boolean;
+  offset?: number;
+  limit?: number;
+};
 
-function getField(row: CsvRow, ...candidates: string[]): string {
-  const normalized = new Map<string, string>();
+type TopicRow = {
+  id: number | string;
+  topic: string | null;
+  text: string | null;
+  links: string | null;
+  wikipedia_link: string | null;
+  images: string | null;
+  confidence: string | null;
+  verdict: string | null;
+  review_notes: string | null;
+  researched_at: string | null;
+};
 
-  for (const [key, value] of Object.entries(row)) {
-    if (!key.trim()) continue;
-    normalized.set(normalizeKey(key), value?.trim() ?? "");
-  }
-
-  for (const candidate of candidates) {
-    const value = normalized.get(normalizeKey(candidate));
-    if (value !== undefined && value !== "") return value;
-  }
-
-  for (const candidate of candidates) {
-    const value = normalized.get(normalizeKey(candidate));
-    if (value !== undefined) return value;
-  }
-
-  return "";
-}
-
-function mapRow(row: CsvRow): Topic | null {
-  const id = getField(row, "id");
-  const topic = getField(row, "topic");
-
-  if (!id || !topic) return null;
-
+function mapRow(row: TopicRow): Topic {
   return {
-    id,
-    topic,
-    text: getField(row, "text"),
-    links: getField(row, "links", "links "),
-    wikipediaLink: getField(row, "wikipedia link", "wikipediaLink", "wikipedia"),
-    images: getField(row, "Images", "images"),
-    confidence: getField(row, "Confidence", "confidence"),
-    verdict: getField(row, "Verdict", "verdict"),
-    reviewNotes: getField(row, "ReviewNotes", "reviewNotes", "review notes"),
-    researchedAt: getField(row, "ResearchedAt", "researchedAt", "researched at"),
+    id: String(row.id),
+    topic: row.topic ?? "",
+    text: row.text ?? "",
+    links: row.links ?? "",
+    wikipediaLink: row.wikipedia_link ?? "",
+    images: row.images ?? "",
+    confidence: row.confidence ?? "",
+    verdict: row.verdict ?? "",
+    reviewNotes: row.review_notes ?? "",
+    researchedAt: row.researched_at ?? "",
   };
 }
 
-function resolveCsvPath(): string {
-  const candidates = [
-    path.join(process.cwd(), "data", "topics.csv"),
-    path.join(process.cwd(), "public", "data", "topics.csv"),
+function sanitizeSearchQuery(query: string): string {
+  return query.replace(/[,()]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function escapeIlike(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+function buildSearchFilter(query: string): string | null {
+  const sanitized = sanitizeSearchQuery(query);
+  if (!sanitized) return null;
+
+  const pattern = `%${escapeIlike(sanitized)}%`;
+  const quoted = `"${pattern.replace(/"/g, "")}"`;
+  const fields = [
+    "topic",
+    "text",
+    "verdict",
+    "confidence",
+    "review_notes",
+    "links",
+    "wikipedia_link",
+    "images",
+    "researched_at",
   ];
 
-  for (const candidate of candidates) {
-    try {
-      readFileSync(candidate, "utf8");
-      return candidate;
-    } catch {
-      // try next candidate
-    }
+  const clauses = fields.map((field) => `${field}.ilike.${quoted}`);
+  const numericId = Number(sanitized);
+  if (Number.isInteger(numericId)) {
+    clauses.push(`id.eq.${numericId}`);
   }
 
-  throw new Error(
-    "topics.csv not found. Expected data/topics.csv or public/data/topics.csv",
-  );
+  return clauses.join(",");
 }
 
-function stripLeadingBlankLines(csv: string): string {
-  const lines = csv.split(/\r?\n/);
-  while (lines.length > 0) {
-    const candidate = lines[0]?.replace(/,/g, "").trim() ?? "";
-    if (candidate.length === 0) {
-      lines.shift();
-      continue;
-    }
-    break;
+async function countTopics(options: {
+  query?: string;
+  hideEmpty?: boolean;
+}): Promise<number> {
+  const supabase = createPublicSupabaseClient();
+  let request = supabase.from("topics").select("id", { count: "exact", head: true });
+
+  if (options.hideEmpty) {
+    request = request.neq("text", "");
   }
-  return lines.join("\n");
+
+  const searchFilter = buildSearchFilter(options.query ?? "");
+  if (searchFilter) {
+    request = request.or(searchFilter);
+  }
+
+  const { count, error } = await request;
+  if (error) throw new Error(`Failed to count topics: ${error.message}`);
+  return count ?? 0;
 }
 
-function parseTopicsFromCsv(csv: string): Topic[] {
-  const normalizedCsv = stripLeadingBlankLines(csv);
-  const parsed = Papa.parse<CsvRow>(normalizedCsv, {
-    header: true,
-    skipEmptyLines: "greedy",
-    transformHeader: (header) => header.replace(/^\uFEFF/, "").trim(),
-  });
+export async function listTopics(params: TopicListParams = {}): Promise<TopicListResult> {
+  const query = params.query?.trim() ?? "";
+  const hideEmpty = params.hideEmpty ?? true;
+  const offset = Math.max(0, params.offset ?? 0);
+  const limit = Math.min(Math.max(1, params.limit ?? TOPICS_PAGE_SIZE), 100);
 
-  if (parsed.errors.length > 0) {
-    const fatal = parsed.errors.filter((error) => error.type === "FieldMismatch");
-    if (fatal.length > 0) {
-      console.warn("CSV parse warnings:", fatal.slice(0, 3));
-    }
+  const supabase = createPublicSupabaseClient();
+  let request = supabase
+    .from("topics")
+    .select(
+      "id, topic, text, links, wikipedia_link, images, confidence, verdict, review_notes, researched_at",
+      { count: "exact" },
+    )
+    .order("id", { ascending: true })
+    .range(offset, offset + limit - 1);
+
+  if (hideEmpty) {
+    request = request.neq("text", "");
   }
 
-  const topics: Topic[] = [];
-
-  for (const row of parsed.data) {
-    const mapped = mapRow(row);
-    if (mapped) topics.push(mapped);
+  const searchFilter = buildSearchFilter(query);
+  if (searchFilter) {
+    request = request.or(searchFilter);
   }
 
-  return topics;
+  const { data, error, count } = await request;
+  if (error) throw new Error(`Failed to list topics: ${error.message}`);
+
+  const poolTotal = query
+    ? await countTopics({ hideEmpty, query: "" })
+    : (count ?? 0);
+
+  return {
+    topics: (data as TopicRow[] | null)?.map(mapRow) ?? [],
+    total: count ?? 0,
+    poolTotal,
+    offset,
+    limit,
+  };
 }
-
-export const getTopics = cache(async (): Promise<Topic[]> => {
-  const csvPath = resolveCsvPath();
-  const csv = readFileSync(csvPath, "utf8");
-  return parseTopicsFromCsv(csv);
-});
 
 export const getTopicById = cache(async (id: string): Promise<Topic | undefined> => {
-  const topics = await getTopics();
-  return topics.find((topic) => topic.id === id);
+  const supabase = createPublicSupabaseClient();
+  const { data, error } = await supabase
+    .from("topics")
+    .select(
+      "id, topic, text, links, wikipedia_link, images, confidence, verdict, review_notes, researched_at",
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load topic ${id}: ${error.message}`);
+  if (!data) return undefined;
+  return mapRow(data as TopicRow);
+});
+
+export const getTopicStats = cache(async (): Promise<TopicStats> => {
+  const supabase = createPublicSupabaseClient();
+
+  const [totalResult, notesResult, verifiedResult] = await Promise.all([
+    supabase.from("topics").select("id", { count: "exact", head: true }),
+    supabase.from("topics").select("id", { count: "exact", head: true }).neq("text", ""),
+    supabase
+      .from("topics")
+      .select("id", { count: "exact", head: true })
+      .ilike("verdict", "verified"),
+  ]);
+
+  if (totalResult.error) {
+    throw new Error(`Failed to load topic stats: ${totalResult.error.message}`);
+  }
+
+  return {
+    total: totalResult.count ?? 0,
+    withNotes: notesResult.count ?? 0,
+    verified: verifiedResult.count ?? 0,
+  };
 });
 
 export async function getTopicIds(): Promise<string[]> {
-  const topics = await getTopics();
-  return topics.map((topic) => topic.id);
+  const supabase = createPublicSupabaseClient();
+  const { data, error } = await supabase.from("topics").select("id").order("id");
+  if (error) throw new Error(`Failed to load topic ids: ${error.message}`);
+  return (data ?? []).map((row) => String(row.id));
 }

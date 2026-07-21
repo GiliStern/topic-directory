@@ -1,23 +1,26 @@
 # Topic Directory
 
-Production-ready Next.js App Router app that loads research topics from CSV and serves searchable grid/table views plus markdown detail pages.
+Next.js App Router app that loads research topics from Supabase and serves a searchable, virtualized grid/table plus markdown detail pages.
 
 ## Stack
 
 - Next.js 14 (App Router) + TypeScript
+- Supabase (Postgres) for topic storage
 - Tailwind CSS + `@tailwindcss/typography`
-- `papaparse` for server-side CSV parsing
+- `@tanstack/react-virtual` for windowed lists
 - `react-markdown` for topic notes
 - `lucide-react`, `clsx`, `tailwind-merge`
 
 ## Data
 
-Place the dataset at:
+Topics live in the Supabase `public.topics` table (columns: `id`, `topic`, `text`, `links`, `wikipedia_link`, `images`, `confidence`, `verdict`, `review_notes`, `researched_at`).
 
-- `data/topics.csv` (preferred, server-loaded)
-- or `public/data/topics.csv`
+Required env vars (see `.env.local`):
 
-Expected columns: `id`, `topic`, `text`, `links`, `wikipedia link`, `Images`, `Confidence`, `Verdict`, `ReviewNotes`, `ResearchedAt`.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+The home page SSR-loads the first page of topics; `/api/topics` handles paginated search across the full archive.
 
 ## Develop
 
@@ -35,4 +38,4 @@ npm start
 
 ## Deploy on Vercel
 
-Connect the repository to Vercel. The app uses dynamic App Router pages (`force-dynamic`) and reads the CSV from the project filesystem at runtime, which works on Vercel Functions.
+Connect the repository to Vercel and set the Supabase env vars for the project.
